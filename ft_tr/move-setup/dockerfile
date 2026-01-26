@@ -1,0 +1,47 @@
+# FROM node:20-alpine
+
+# WORKDIR /app
+# COPY package*.json ./
+# RUN npm install
+# COPY src ./src
+# COPY .env ./
+# RUN npx prisma generate --schema=src/prisma/schema.prisma
+# # // from isnide src 
+# CMD ["npx", "nodemon", "-L", "src/app.js"]
+# # docker run -p 8181:8181 -v ${PWD}:/app -v /app/node_modules  --name c3 im3
+
+# FROM node:20-alpine
+
+# WORKDIR /app
+
+# COPY package*.json ./
+# RUN npm install
+
+# # Copy Prisma schema AND config (important for Prisma 7)
+# COPY prisma ./prisma
+# COPY prisma.config.ts ./ 
+
+# # Generate the client INTO the src/generated folder
+# RUN npx prisma generate
+
+# # Copy the rest of the code
+# COPY . .
+
+# EXPOSE 8281
+
+# CMD ["npx", "nodemon", "-L", "src/app.js"]
+
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+
+COPY prisma ./prisma
+
+# Generate Prisma client to default location (node_modules)
+RUN npx prisma generate
+
+COPY . .
+EXPOSE 8281
+# CMD ["npx", "nodemon", "-L", "src/app.js"]
+CMD ["sh", "-c", "npx prisma generate && npx prisma db push && npx nodemon -L src/app.js"]

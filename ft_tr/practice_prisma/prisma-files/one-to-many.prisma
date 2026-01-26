@@ -1,0 +1,35 @@
+// user profile one to one 
+// user posts one to many
+
+// model User3 {
+//      id Int @id @default(autoincrement())
+//      email String @unique
+//      name String @map("ftname")
+//     //  role Role3? @default(USER)
+//      profile Profile3?
+//      posts Post3[]
+//      //The array [] explicitly indicates multiple posts per user
+
+//     //  @@map("users")
+//     //  @@unique([name, role])
+//      @@index([id, email])
+
+
+// }
+// model Profile3{
+//   id Int @id @default(autoincrement())
+//   bio String
+//   userId Int @unique
+//   user User3 @relation(fields: [userId], references: [id])
+// }
+//  model Post3{
+//   id Int @id @default(autoincrement())
+//   title String
+//   createdAt DateTime @default(now())
+//   published Boolean @default(false)
+//   authorId Int
+//   // foreign key but its not unique means one user can have many posts
+
+//   author User3 @relation(fields: [authorId], references: [id])
+
+//  }

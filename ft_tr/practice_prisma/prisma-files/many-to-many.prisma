@@ -1,0 +1,82 @@
+// Many-to-many = “two one-to-many relationships 
+// pointing to the same join table”
+// example?
+// model Userr {
+//   id Int @id @default(autoincrement())
+//   name String
+//   roles UserRole[]
+// }
+
+// model Role {
+//   id Int @id @default(autoincrement())
+//   name String
+//   users UserRole[]
+// }
+
+// model UserRole {
+//   userId Int
+//   roleId Int
+//   user Userr @relation(fields: [userId], references: [id])
+//   role Role @relation(fields: [roleId], references: [id])
+  
+//   @@id([userId, roleId]) // composite key
+// }
+// 3️⃣ Using one-to-many to build many-to-many
+// Here’s the trick:
+// Make one-to-many from User → UserRoles
+// Make one-to-many from Role → UserRoles
+// User 1 ──< UserRoles >── 1 Role
+// From User perspective: a user has many UserRoles 
+//                         → then can get all Roles
+// From Role perspective: a role has many UserRoles
+//                         → then can get all Users
+// This effectively creates many-to-many.
+// user profile one to one 
+// user posts one to many
+// model User4 {
+//   id Int @id(map: "users_pkey_custom") @default(autoincrement()) 
+//   email String @unique(map: "email-key")
+//   name String @map("firstName")
+//   role Role4? @default(USER)
+ 
+//   profile Profile4? 
+//  posts   Post4[] 
+  
+//   @@map("users")
+   
+
+//   @@unique([name, role])
+//   @@index([id, email], map:"users_id_email_ids")
+// } 
+
+// model Profile4 {
+//   id Int @id @default(autoincrement())
+//   bio String
+//   userId Int @unique
+//   user User4 @relation(fields: [userId], references: [id])
+// }
+
+// model Post4 {
+//   id         Int        @id @default(autoincrement())
+//   createdAt  DateTime   @default(now())
+//   updatedAt  DateTime   @updatedAt
+//   title      String
+//   likeNum  Int  @default(0) 
+//   published  Boolean    @default(false)
+//   author     User4?       @relation(fields: [authorId], references: [id] , onDelete:Cascade )
+//   authorId   Int?  
+//   categories Category[] 
+  
+
+// }
+
+// model Category{
+//   id Int @id @default(autoincrement())
+//   name String
+//   posts Post4[]
+// }
+// enum Role4 {
+//   USER 
+//   ADMIN 
+  
+// }

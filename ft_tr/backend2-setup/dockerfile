@@ -1,0 +1,11 @@
+FROM node:20-alpine
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY src ./src
+COPY .env ./
+RUN npx prisma generate --schema=src/prisma/schema.prisma
+# // from isnide src 
+CMD ["npx", "nodemon", "-L", "src/app.js"]
+# docker run -p 8181:8181 -v ${PWD}:/app -v /app/node_modules  --name c3 im3

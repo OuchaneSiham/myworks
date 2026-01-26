@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: user42
+      POSTGRES_PASSWORD: password42
+      POSTGRES_DB: transcendence_db
+    ports:
+      - "5432:5432"
+    # --- ADD THIS LINE ---
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: .
+    container_name: fastify_app
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - DATABASE_URL=postgresql://user42:password42@postgres_db:5432/transcendence_db
+    ports:
+      - "8281:8281"
+    depends_on:
+      - db
+volumes:
+  postgres_data:

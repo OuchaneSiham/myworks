@@ -1,0 +1,41 @@
+// one to one user to profile
+// a user1 can have oneprofile1 or 0 and a profile1 can have one usaer1
+
+// model User1{
+//        id Int @id @default(autoincrement())
+//        bio String
+//        profile Profile1?
+
+// }
+// model Profile1{
+//   id Int @id @default(autoincrement())
+//   bio String
+//   userId Int @unique //is a foreign key
+//   // without unique keyword it gonna be one to many but with unique id 5 wont ahve many proofiles
+//   // One-to-one = foreign key + UNIQUE
+//   user User1 @relation(fields: [userId], references: [id])
+// }
+
+// model User2 {
+//   ftname String
+//   Ltname String
+//   profile Profile2?
+
+//   @@id([ftname, Ltname])// primary key cannot be null
+// // Neither ftname nor ltname is unique alone,
+// // but the combination of both together must be unique.
+// //“This combination IS the identity of the row” like when we do ident a row with index 
+
+
+// }
+// model Profile2{
+//   id Int @id
+//   userFtname String
+//   userLtname String
+
+//   user User2 @relation(fields: [userFtname, userLtname], references: [ftname, Ltname])
+
+//   @@unique([userFtname, userLtname])
+//   // this one the comb is musbt be true for two of them but its not identity
+  
+// }
