@@ -1,10 +1,4 @@
 
-// const fastify = require('fastify')({ logger: true });
-// JWT_KEY="trez1337"
-// fastify.register(require('@fastify/jwt'), {
-//     secret: JWT_KEY,
-//   })
-
 const bcrypt = require ('bcrypt');
 const path = require('path');
 const {OAuth2Client} = require('google-auth-library');
@@ -12,7 +6,7 @@ const client = new OAuth2Client();
 const userController = require("../controllers/user-controller.js");
 const v = require ("validator");
 const { create } = require('domain');
-GOOGLE_CLIENT_ID="470373993744-tjq6l6bk7ikvbvl46vpbd12pcqepuctb.apps.googleusercontent.com"
+// GOOGLE_CLIENT_ID="470373993744-tjq6l6bk7ikvbvl46vpbd12pcqepuctb.apps.googleusercontent.com"
 // const { PrismaClient }  = require('../generated/prisma/client');
 // const { PrismaClient } = require('../generated/prisma/client.js');
 const { PrismaClient } = require('@prisma/client');
@@ -116,12 +110,15 @@ async function routes(fastify, options) {
             const result = await bcrypt.compare(password, exist.password);
             if(result == false)
                 reply.status(500).send({error: "wrong password try again!"});
-
                 const token = fastify.jwt.sign({
                     id: exist.id,
                     email: exist.email
                 }, {expiresIn: "24h"})
                 console.log("the token is again", token);
+            const upState = await prisma.user.update({
+                where:{username: username, },
+                data:{isOnline: true}
+            })
             reply.status(200).send({
                 username: exist.username,
                 email: exist.email,
@@ -136,17 +133,23 @@ async function routes(fastify, options) {
     fastify.post("/google-auth", async function (request, reply) 
     {
         const {token } = request.body;
-        console.log("token is:", token);
+        // console.log("token is:", token);
         try{
             const payload_sig = await client.verifyIdToken({
                 idToken: token,
-                audience: GOOGLE_CLIENT_ID,
+                audience: process.env.GOOGLE_CLIENT_ID,
             })
             // console.log("a7aaa", payload_sig);
             const payloadn = payload_sig.payload.name;
             const payloade = payload_sig.payload.email;
             const payloadsub = payload_sig.payload.sub;
-
+            let finalUsername = payloadn.replace(/\s+/g, "");
+            const exist = await prisma.user.findUnique({
+                where:{username: finalUsername}
+            });
+            if(exist){
+                finalUsername =  finalUsername + Date.now();
+            }
             // console.log(payloadn, payloade, payloadsub);
             const user = await prisma.user.upsert({
                 where:{
@@ -154,20 +157,24 @@ async function routes(fastify, options) {
                 },
                 update:{
                     email:payloade,
-                    username:payloadn,
                     googleId: payloadsub,
+                    isOnline: true
                 },
                 create:{
                     email:payloade,
-                    username:payloadn,
+                    username:finalUsername,
                     googleId: payloadsub,
+                    isOnline:true
                 }
             })
             const token = fastify.jwt.sign({
                 email: user.email,
                 id : user.id
             } , {expiresIn: "24h"} );
-
+            // const setStatus = await prisma.user.update({
+            //     where: {id:user.id},
+            //     data:{isOnline: true}
+            // }) this line dont make sense 
             reply.send({
                 message: "u logged in su",
                 token
@@ -180,7 +187,6 @@ async function routes(fastify, options) {
     })
 
     fastify.get("/me", {preHandler :[fastify.jwtAuthFun]}, async function (request, reply){
-        // console.log("user request", request.user.id);
         try{
             const record = await prisma.user.findUnique({
                 where:{
@@ -217,41 +223,66 @@ async function routes(fastify, options) {
                     console.log("1. Starting the Pipe...");
                     const result = await pipeline(data.file, fs.createWriteStream(savePath));
                     console.log("2. Pipe Finished! Result:", result);
-                    return reply.send({ message: "File saved successfully!" });
+                    const avatarurl = "http://localhost:8281/" + newFile;
+                    const upUser = await prisma.user.update({
+                        where:{
+                            id: request.user.id
+                        },
+                        data:{
+                            avatar: avatarurl
+                        }
+                    })
+                    console.log("DEBUG: ID value is:", request.user.id, " | ID Type is:", typeof request.user.id);
+                    return reply.send({ user:upUser});
                     // ... the rest of your pipeline code
-                } catch (e) {
-                    console.log("Parsing failed:", e.message);
-                }
+                    } catch (e) {
+                        console.log("Parsing failed:", e.message);
+                        return reply.status(500).send({ error: e.message }); // Add return here!
+                    }
             }
             else{
                 console.log("✅ NO FILE DETECTED!");
             }
             if(request.body)
             {
-                    const {username, email} = request.body;
+                    const {username, email, password} = request.body;
+                    const updateData = {};
                     try{
                         if(username)
                         {
                             const  updu = await prisma.user.findUnique({
                                 where:{username:username}
                             });
-                                if( updu && updu.id != request.user.id)
-                                    {reply.status(400).send("Username already taken")
-                                return;}
+                            if( updu && updu.id != request.user.id)
+                                {reply.status(400).send("Username already taken")
+                                    return;}
+                                    updateData.username = username;
                         } 
                         if(email)
                             {
                                 const  upde = await prisma.user.findUnique({
                                     where:{email:email}
                                 });
-                                    if(upde && upde.id != request.user.id)
-                                        {reply.status(400).send("email already taken");
-                                     return;
+                                if(upde && upde.id != request.user.id)
+                                    {reply.status(400).send("email already taken");
+                                        return;
+                                    }
+                                    updateData.email = email;
+                            }
+                            if(password)
+                            {
+                                if(!v.isStrongPassword(password))
+                                {
+                                    reply.status(500).send("Password too weak: it must be at least 8 characters, include an uppercase letter, a number, and a symbol.");
+                                    return ;
                                 }
+                                const mysalt =  await bcrypt.genSalt(10);
+                                const myhash =  await bcrypt.hash(password, mysalt);
+                                updateData.password = myhash;
                             }
                             const newuser = await prisma.user.update({
                                 where:{id: request.user.id},
-                                data:request.body
+                                data:updateData
                             })
                             reply.status(200).send({
                                 newuser
@@ -262,10 +293,163 @@ async function routes(fastify, options) {
             }
         }
     })
+
+    fastify.get("/search", {preHandler :[fastify.jwtAuthFun]}, async function (request, reply)
+    {
+        const q =  request.query.q;
+        // console.log("here is the query parameter: ",q,"||user request id lets see if the id is correct ", request.user);
+        //  console.log("lets see the id inside user request", request.user.id);
+        // or const {q} =  request.query;
+        try{
+            if(!q || q.length < 2)
+            {
+                reply.send([]);
+                return;
+            }
+            const data = await prisma.user.findMany({
+                where:{
+                    username: {
+                        contains: q,
+                        mode: 'insensitive',
+                    },
+                    id:{
+                        not: request.user.id,
+                    }
+                },
+                select:{
+                    username: true,
+                    id: true,
+                    avatar: true,
+                }
+            })
+            reply.status(200).send({data});
+        }
+            catch(err){
+                reply.status(500).send("we cant find that user to add ");
+            }
+    })
+    fastify.post("/friends/request/:targetId", {preHandler:[fastify.jwtAuthFun]}, async function (request, reply) 
+    {
+        const userId = request.user.id;
+        const postId = parseInt(request.params.targetId);
+        try{
+            const create_f = await prisma.friendship.create({
+                data:{
+                    requesterId:userId,
+                    addresseeId: postId,
+                }
+            })
+            reply.status(201).send(create_f);
+        }
+        catch (error) {
+            // console.error("Error creating user:", error.message, error.meta);
+            if(error.code == "P2002")
+            {
+                reply.status(500).send({
+                error: "the friendhsip already created"
+            });
+            }
+            reply.status(500).send("failed to send a friend request try again");
+        }
+    })
+    fastify.get("/friends/pending", {preHandler:[fastify.jwtAuthFun]}, async function (request, reply) 
+    {
+        const findId = request.user.id;
+        try{
+            const find = await prisma.friendship.findMany({
+                where:{
+                    addresseeId: findId,
+                    status: "pending",
+                },
+                include:{
+                    requester:{
+                        select:{
+                            id: true,
+                            avatar: true,
+                            username: true,
+                        }
+                    }
+                }
+
+            })
+            reply.status(200).send (find);
+
+        }
+        catch(error)
+        {
+            reply.status(500).send("no user has pending requests");
+        }
+    })
+    fastify.patch("accept/:id", {preHandler:[fastify.jwtAuthFun]}, async function (request, reply)
+    {
+        const rowId =  parseInt(request.params.id);
+        const receiverId = request.user.id;
+        try{
+            const checkFrienship = await  prisma.friendship.findUnique({
+                where:{
+                    id: rowId,
+                }
+            })
+            if(!checkFrienship)
+                return reply.status(404).send({ error: "Friend request not found" });
+            if(checkFrienship.addresseeId !== receiverId)
+                return reply.status(403).send({ error: "u cant accept this request" });
+            const changeStatus = await prisma.friendship.update({
+                where:{id:rowId},
+                data:{status: "accepted"}
+            });
+
+            // reply.status(200).send("the request is accepted!");
+            reply.status(200).send("the request is accepted!");
+        }
+        catch(error){
+
+        }
+    })    
+    fastify.delete("/friends/request/:id", {preHandler:[fastify.jwtAuthFun]}, async function (request, reply)
+    {
+        const rowId =  parseInt(request.params.id);
+        const receiverId = request.user.id;
+        try{
+            const checkFrienship = await  prisma.friendship.findUnique({
+                where:{
+                    id: rowId,
+                }
+            })
+            if(!checkFrienship)
+                return reply.status(404).send({ error: "Friend request not found" });
+            // if(checkFrienship.addresseeId !== receiverId)
+            if(checkFrienship.addresseeId !== receiverId && checkFrienship.requesterId !== receiverId)
+                return reply.status(403).send({ error: "u cant decline this request" });
+            const changeStatus = await prisma.friendship.delete({
+                where:{id:rowId}
+            });
+
+            // reply.status(200).send("the request is accepted!");
+            reply.status(200).send("the request is declined!");
+        }
+        catch(error){
+
+        }
+    })
+    fastify.post("/logout", {preHandler: [fastify.jwtAuthFun]}, async function (request, reply)
+    {
+        const userId = request.user.id;
+        try{
+            const toOut = await prisma.user.update({
+                where:{id:userId},
+                data:{isOnline: false}
+            })
+            reply.status(200).send("user logout successfully!!!");
+        }
+        catch(error)
+        {
+
+        }
+    })
 }
 
 module.exports = routes;
-
 // @fastify/multipart: This is the "hands" that can open the FormData and extract the image.
 
 // @fastify/static: This is the "display window." Once you save the image, you need a way for the browser to see it (e.g., http://localhost:8281/uploads/photo.jpg).

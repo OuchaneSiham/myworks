@@ -46,7 +46,7 @@ function Login(){
                 <br></br>
                 <div>
                     <label htmlFor="password">password:</label>
-                    <input type="text" onChange={handlechange} id="password" name="password" placeholder="enter your password" required ></input>
+                    <input type="password" onChange={handlechange} id="password" name="password" placeholder="enter your password" required ></input>
                 </div>
                 <br />
                 <div>

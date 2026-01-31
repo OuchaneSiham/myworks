@@ -13,12 +13,10 @@ fastify.register(cors, {
   })
   fastify.register(multipart);
   fastify.register(static,{
-    root: path.join(__dirname, 'uploads'),
+    root: path.join(__dirname, ".." ,'uploads'),
+    prefix: "/"
   });
-// JWT_KEY="trez1337"
-// fastify.register(require('@fastify/jwt'), {
-//     secret: JWT_KEY,
-//   })
+  console.log("the absulte path of the directory", path.join(__dirname, 'uploads'));
   const jwtw = require("./routes/plugin");
   fastify.register(jwtw);
 const userRoutes = require("./routes/user-route");

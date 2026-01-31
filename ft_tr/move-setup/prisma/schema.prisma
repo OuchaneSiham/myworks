@@ -6,11 +6,40 @@ datasource db {
 }
 
 model User {
-  id       Int     @id @default(autoincrement())
-  username String  @unique
-  email    String  @unique
-  password String?
-  googleId String? @unique 
-  avatar String @default("avatars/default.png")
+  id               Int          @id @default(autoincrement())
+  username         String       @unique
+  email            String       @unique
+  password         String?
+  googleId         String?      @unique 
+  avatar           String       @default("avatars/default.png")
+  
+  // --- NEW FIELDS FOR MODULES ---
+  role             String       @default("user")     // For "Advanced Permissions"
+  isOnline         Boolean      @default(false)      // For "Online Status"
+  twoFactorEnabled Boolean      @default(false)      // For "2FA"
+  twoFactorSecret  String?                           // For "2FA" logic
+  
+  // Relations for the Friend System
+  sentRequests     Friendship[] @relation("SentRequests")
+  receivedRequests Friendship[] @relation("ReceivedRequests")
+
   @@map("user")
+}
+
+model Friendship {
+  id          Int      @id @default(autoincrement())
+  status      String   @default("pending") // "pending", "accepted", "blocked"
+  
+  // Who sent the request
+  requester   User     @relation("SentRequests", fields: [requesterId], references: [id])
+  requesterId Int
+
+  // Who received it
+  addressee   User     @relation("ReceivedRequests", fields: [addresseeId], references: [id])
+  addresseeId Int
+
+  createdAt   DateTime @default(now())
+
+  // CRITICAL: A user cannot send a request to the same person twice
+  @@unique([requesterId, addresseeId])
 }
