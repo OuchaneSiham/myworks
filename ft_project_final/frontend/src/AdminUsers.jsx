@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL } from './config';
 import {useEffect, useState} from "react"
 import {Link, useNavigate} from 'react-router-dom'
 
@@ -37,7 +37,7 @@ function AdminUsers() {
         const token = localStorage.getItem("token");
         
         try {
-            const resp = await fetch(`http://localhost:8281/api/v1/users/users/${userId}`, { // ✅ FIXED
+            const resp = await fetch(`${API_BASE_URL}/users/users/${userId}`, { // ✅ FIXED
                 method: "DELETE",
                 headers: { "Authorization": "Bearer " + token }
             });
@@ -104,7 +104,7 @@ function EditForm({ user, onClose }) {
         const token = localStorage.getItem("token");
         
         try {
-            const resp = await fetch(`http://localhost:8281/api/v1/users/admin/users/${user.id}`, { // ✅ FIXED
+            const resp = await fetch(`${API_BASE_URL}/users/admin/users/${user.id}`, { // ✅ FIXED
                 method: "PATCH",
                 headers: {
                     "Authorization": "Bearer " + token,

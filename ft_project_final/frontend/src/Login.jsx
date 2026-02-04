@@ -1,6 +1,7 @@
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL } from './config';
 import { useState, useRef, useEffect} from "react";
 import { Link, useNavigate } from 'react-router-dom'
+import Google from './Google.jsx' // Add this import
 // import {Link} from "react-router-dom"
 
 function Login(){
@@ -21,13 +22,6 @@ function Login(){
                 },
                 body: JSON.stringify(formData),
             });
-            // const data = await resp.json();
-            // // console.log("THE DA-------------------",data.token);
-            // const sessionToken = data.token;
-            // const saved = localStorage.setItem("token",sessionToken);
-            // navigate("/profile");
-            // Maps("/profile");
-            // console.log(sessionToken);
             if (resp.ok)
             {
                 const data = await resp.json();
@@ -65,6 +59,9 @@ function Login(){
                 <input type="submit" value="sign in"></input>
                 </div>
             </form>
+            <br />
+            <Google /> 
+            <br />
             <Link to="/">Don't have an account? Sign up</Link>
         </div>
         </>

@@ -3,38 +3,40 @@ services:
     image: postgres:15-alpine
     container_name: postgres_db
     environment:
-      POSTGRES_USER: user42
-      POSTGRES_PASSWORD: password42
-      POSTGRES_DB: transcendence_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: trans_db
     ports:
       - "5432:5432"
-    # --- ADD THIS LINE ---
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
 
   backend:
-    build: .
+    build: ./backend
     container_name: fastify_app
     volumes:
-      - .:/app
+      - ./backend:/app
       - /app/node_modules
-      - ./uploads:/app/uploads
     environment:
-      - DATABASE_URL=postgresql://user42:password42@postgres_db:5432/transcendence_db
-    ports:
-      - "8281:8281"
+      - DATABASE_URL=postgresql://user:password@postgres_db:5432/trans_db?schema=public
     depends_on:
       - db
+    ports:
+      - "8281:8281"
+
+  frontend:
+    build: ./frontend
+    container_name: react_app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
   nginx:
     image: nginx:alpine
     container_name: nginx_proxy
     ports:
       - "8443:8443"
-      - "8081:8080" # Maps local 8081 to Nginx 8080
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./certs:/etc/nginx/certs:ro
     depends_on:
+      - frontend
       - backend
-volumes:
-  postgres_data:
