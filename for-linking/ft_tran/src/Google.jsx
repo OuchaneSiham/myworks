@@ -1,7 +1,6 @@
-import { useEffect } from "react";
-import {GoogleOAuthProvider} from '@react-oauth/google'
+
+import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
-import { Link, useNavigate } from 'react-router-dom'
 function Google()
 {
   const navigate = useNavigate();
@@ -32,7 +31,8 @@ function Google()
       }
       else 
       {
-        console.log(data, "server error");
+          const data = await resp.json();
+          console.log(data, "server error");
       }
       }
       const handleErr =() =>{

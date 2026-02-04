@@ -1,4 +1,4 @@
-
+const prisma = require('../config/db.js');
 const bcrypt = require ('bcrypt');
 const path = require('path');
 const {OAuth2Client} = require('google-auth-library');
@@ -6,23 +6,16 @@ const client = new OAuth2Client();
 const userController = require("../controllers/user-controller.js");
 const v = require ("validator");
 const { create } = require('domain');
-// GOOGLE_CLIENT_ID="470373993744-tjq6l6bk7ikvbvl46vpbd12pcqepuctb.apps.googleusercontent.com"
-// const { PrismaClient }  = require('../generated/prisma/client');
-// const { PrismaClient } = require('../generated/prisma/client.js');
-const { PrismaClient } = require('@prisma/client');
-const { PrismaPg } = require("@prisma/adapter-pg");
-const { Pool } = require('pg');
 const fs = require('fs');
-// const util = require('util');
 const { pipeline } = require('stream/promises');
-// Use the environment variable from Docker
-const connectionString = process.env.DATABASE_URL;
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+async function getNewUserRole() 
+{
+    const userCount = await prisma.user.count();
+    return userCount === 0 ? "admin" : "user";
+}
 
 async function routes(fastify, options) {
-    fastify.get("/find",{ preHandler: [fastify.jwtAuthFun] }, async function (request, reply) 
+    fastify.get("/admin/users",{ preHandler: [fastify.jwtAuthFun, fastify.verifyAdmin] }, async function (request, reply) 
     {
         try{
             const by = await prisma.user.findMany();
@@ -36,61 +29,61 @@ async function routes(fastify, options) {
         }
         // reply.send({auth2client});
     })
-    fastify.post("/register", async (request, reply) => {
-        const { username, email, password } = request.body;
-        // console.log("siham-----------------");
-        // console.log('Received:', { username, email , password});
-        if(!username || !email || !password)
-        {
-            reply.status(500).send("all the three fields are required");
-        }
-        if(!v.isStrongPassword(password))
-        {
-            reply.status(500).send("Password too weak: it must be at least 8 characters, include an uppercase letter, a number, and a symbol.");
-            return ;
-        }
-        if(!v.matches(username, /^[A-Za-z0-9_]+$/))
-        {
-            reply.status(400).send("Username can only have letters, numbers, and underscores.");
-            return ;
-        }
-        if(!v.isEmail(email))
-        {
-            reply.status(500).send("follow the email format");
-            return ;
-        }
-        try {
-            const mysalt =  await bcrypt.genSalt(10);
-            const myhash =  await bcrypt.hash(password, mysalt);
-            const user = await prisma.user.create({data: {username, email, password: myhash}});
-            // console.log("+++++++++++++", );
-                        // console.log("+++++++++++++", myhash);
-            const token = fastify.jwt.sign({
-                            id: user.id,
-                            email: user.email
-                        }, {expiresIn: "24h"})
-            // console.log("this is the token", user.id, user.email);
-            console.log("this is the token", token);
-            reply.status(201).send({
-                    success: true,
-                    message: "User created successfulely!",
-                    user,
-                    token
+fastify.post("/register", async (request, reply) => {
+    const { username, email, password } = request.body;
+    
+    if(!username || !email || !password) {
+        return reply.status(400).send("all the three fields are required");
+    }
+    
+    if(!v.isStrongPassword(password)) {
+        return reply.status(400).send("Password too weak: it must be at least 8 characters, include an uppercase letter, a number, and a symbol.");
+    }
+    
+    if(!v.matches(username, /^[A-Za-z0-9_]+$/)) {
+        return reply.status(400).send("Username can only have letters, numbers, and underscores.");
+    }
+    
+    if(!v.isEmail(email)) {
+        return reply.status(400).send("follow the email format");
+    }
+    
+    try {
+        const role = await getNewUserRole();
+        const mysalt = await bcrypt.genSalt(10);
+        const myhash = await bcrypt.hash(password, mysalt);
+        
+        // ✅ NEW: Include role in creation
+        const user = await prisma.user.create({
+            data: {
+                username, 
+                email, 
+                password: myhash,
+                role: role 
             }
-            // eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTQsImVtYWlsIjoic2loZGRkZEBleGFtcGxlLmNvbSIsImlhdCI6MTc2ODg0MzgwOCwiZXhwIjoxNzY4OTMwMjA4fQ.zrZ0Zmdm7MaJiHpqzEmWqfQQBqqASAIRmoGsPdAj8kU
-        );
-        } 
-        catch (error) {
-            // console.error("Error creating user:", error.message, error.meta);
-            if(error.code == "P2002")
-            {
-                reply.status(500).send({
+        });
+        
+        const token = fastify.jwt.sign({
+            id: user.id,
+            email: user.email
+        }, {expiresIn: "24h"});
+        
+        reply.status(201).send({
+            success: true,
+            message: "User created successfully!",
+            user,
+            token
+        });
+        
+    } catch (error) {
+        if(error.code == "P2002") {
+            return reply.status(400).send({
                 error: "the username or email already taken try again"
             });
-            }
-            reply.status(500).send("failed to register the user");
         }
-    });
+        return reply.status(500).send("failed to register the user");
+    }
+});
     fastify.post("/login", async function (request, reply) 
     {
         const {username, password} = request.body
@@ -105,12 +98,16 @@ async function routes(fastify, options) {
             {
                 reply.status(500).send(
                     "this user doesnt exist in our db! if u didint register yet go to register page or username inccorect!");
+                return;
             }
             console.log("sihammmm", exist);
             const result = await bcrypt.compare(password, exist.password);
             if(result == false)
+            {
                 reply.status(500).send({error: "wrong password try again!"});
-                const token = fastify.jwt.sign({
+                return;
+            }
+            const token = fastify.jwt.sign({
                     id: exist.id,
                     email: exist.email
                 }, {expiresIn: "24h"})
@@ -151,6 +148,9 @@ async function routes(fastify, options) {
                 finalUsername =  finalUsername + Date.now();
             }
             // console.log(payloadn, payloade, payloadsub);
+            // Determine role for new users (first user = admin)
+            const role = await getNewUserRole();
+
             const user = await prisma.user.upsert({
                 where:{
                     email:payloade
@@ -164,17 +164,14 @@ async function routes(fastify, options) {
                     email:payloade,
                     username:finalUsername,
                     googleId: payloadsub,
-                    isOnline:true
+                    isOnline: true,
+                    role: role
                 }
             })
             const token = fastify.jwt.sign({
                 email: user.email,
                 id : user.id
             } , {expiresIn: "24h"} );
-            // const setStatus = await prisma.user.update({
-            //     where: {id:user.id},
-            //     data:{isOnline: true}
-            // }) this line dont make sense 
             reply.send({
                 message: "u logged in su",
                 token
@@ -196,22 +193,20 @@ async function routes(fastify, options) {
                     id: true,
                     username: true,
                     email: true,
-                    avatar: true
-                }
-            })
-            // console.log("the full record is :", record);
+                    avatar: true,
+                    role: true
+        }})
             reply.status(200).send(record);
         }
-        catch(err){
-
+        catch(err) 
+        { 
+            console.error(err);
+            reply.status(500).send({ error: "Internal Server Error" }); // Safe for user
         }
     })
 
     fastify.patch("/update", {preHandler :[fastify.jwtAuthFun]}, async function (request, reply){
-        // console.log("update user by his id", request.user.id);
-        // console.log("update user by his id", request.body);
         console.log("Headers:", request.headers['content-type']);
-        // const is = request.headers['content-type'];
         if(request.isMultipart())
             {
                 console.log("✅ DETECTED! About to parse file...");
@@ -234,7 +229,6 @@ async function routes(fastify, options) {
                     })
                     console.log("DEBUG: ID value is:", request.user.id, " | ID Type is:", typeof request.user.id);
                     return reply.send({ user:upUser});
-                    // ... the rest of your pipeline code
                     } catch (e) {
                         console.log("Parsing failed:", e.message);
                         return reply.status(500).send({ error: e.message }); // Add return here!
@@ -380,7 +374,7 @@ async function routes(fastify, options) {
             reply.status(500).send("no user has pending requests");
         }
     })
-    fastify.patch("accept/:id", {preHandler:[fastify.jwtAuthFun]}, async function (request, reply)
+    fastify.patch("/accept/:id", {preHandler:[fastify.jwtAuthFun]}, async function (request, reply)
     {
         const rowId =  parseInt(request.params.id);
         const receiverId = request.user.id;
@@ -402,9 +396,10 @@ async function routes(fastify, options) {
             // reply.status(200).send("the request is accepted!");
             reply.status(200).send("the request is accepted!");
         }
-        catch(error){
-
-        }
+catch(err) { 
+    console.error(err); // Log for you
+    reply.status(500).send({ error: "Internal Server Error" }); // Safe for user
+}
     })    
     fastify.delete("/friends/request/:id", {preHandler:[fastify.jwtAuthFun]}, async function (request, reply)
     {
@@ -428,9 +423,10 @@ async function routes(fastify, options) {
             // reply.status(200).send("the request is accepted!");
             reply.status(200).send("the request is declined!");
         }
-        catch(error){
-
-        }
+catch(err) { 
+    console.error(err); // Log for you
+    reply.status(500).send({ error: "Internal Server Error" }); // Safe for user
+}
     })
     fastify.post("/logout", {preHandler: [fastify.jwtAuthFun]}, async function (request, reply)
     {
@@ -442,10 +438,146 @@ async function routes(fastify, options) {
             })
             reply.status(200).send("user logout successfully!!!");
         }
-        catch(error)
-        {
-
+catch(err) { 
+    console.error(err); // Log for you
+    reply.status(500).send({ error: "Internal Server Error" }); // Safe for user
+}
+    })
+    fastify.get("/friends/list", {preHandler:[fastify.jwtAuthFun]}, async function (request, reply)//httponly
+    {
+        const userId = request.user.id;
+        try{
+            const findFs =  await prisma.friendship.findMany({
+                where:{
+                    OR:[
+                        {requesterId: userId},{addresseeId: userId}
+                    ],
+                    status: "accepted"
+                },
+                include: {
+                    requester: {
+                        select: {
+                            id: true,
+                            username: true,
+                            avatar: true,
+                            isOnline: true
+                        }
+                    },
+                    addressee: {
+                        select: {
+                            id: true,
+                            username: true,
+                            avatar: true,
+                            isOnline: true
+                        }
+                    }
+            }
+            })
+            const friends = findFs.map((frs) =>{
+                if(frs.requesterId === userId)
+                    return frs.addressee;
+                else
+                    return frs.requester;
+            })
+            reply.status(200).send(friends);
         }
+catch(err) { 
+    console.error(err); // Log for you
+    reply.status(500).send({ error: "Internal Server Error" }); // Safe for user
+}
+        
+    })
+    fastify.delete("/users/:id", {preHandler:[fastify.jwtAuthFun, fastify.verifyAdmin]}, async function  (request, reply) 
+    {
+        const adminId = request.user.id;
+        const targeId = parseInt(request.params.id);
+        try{
+            if(targeId === adminId)
+            {
+                reply.status(400).send({message: "u cant delete urself u are the admin"});
+                return;
+            }
+            const del = await prisma.friendship.deleteMany({
+                where:{
+                    OR:[
+                        {addresseeId: targeId},
+                        {requesterId: targeId}
+                    ]
+                }
+            })
+            const delUser = await prisma.user.delete({
+                where:{
+                    id:targeId,
+                }
+            })
+            reply.send({message:"the user deleted successfully from db!"});
+        }
+catch(err) { 
+    console.error(err); // Log for you
+    reply.status(500).send({ error: "Internal Server Error" }); // Safe for user
+}
+    })
+    fastify.patch("/admin/users/:id", {preHandler:[fastify.jwtAuthFun, fastify.verifyAdmin]}, async function  (request, reply) 
+    {
+        const adminId = request.user.id;
+        const targetId = parseInt(request.params.id);
+        const {username, email, role} = request.body;
+        const updateData ={};
+        // const allowedRoles = ["moderator", "user"];
+        const allowedRoles = ["user", "moderator"];
+        if (role && !allowedRoles.includes(role)) {
+            return reply.status(400).send({ message: "Invalid role. Only 'user' or 'moderator' are allowed." });
+        }
+        if(targetId === adminId)
+        {
+            reply.status(400).send({message:"u cant u are the admin"})
+            return;
+        }
+
+        try{
+            if(username)
+            {
+            const  updu = await prisma.user.findUnique({
+            where:{username:username}
+            });
+            if( updu && updu.id != targetId)
+            {reply.status(400).send("Username already taken")
+            return;}
+            updateData.username = username;
+            } 
+            if(email)
+            {
+            const  upde = await prisma.user.findUnique({
+            where:{email:email}
+            });
+            if(upde && upde.id != targetId)
+            {reply.status(400).send("email already taken");
+            return;
+            }
+            updateData.email = email;
+            }
+            if(role)
+                updateData.role = role;
+
+            const user = await prisma.user.update({
+                    where: { id: targetId },
+                    data: updateData,
+                    select: {
+                        id: true,
+                        username: true,
+                        email: true,
+                        role: true,
+                        avatar: true
+        }
+                }
+            )
+            reply.status(200).send({
+                    message: "User updated successfully by Admin",
+                    user: user
+                });
+            } catch (error) {
+                reply.status(500).send({ message: "Failed to update user", error: error.message });
+            }
     })
 }
 

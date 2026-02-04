@@ -21,13 +21,25 @@ function Login(){
                 },
                 body: JSON.stringify(formData),
             });
-            const data = await resp.json();
-            // console.log("THE DA-------------------",data.token);
-            const sessionToken = data.token;
-            const saved = localStorage.setItem("token",sessionToken);
-            navigate("/profile");
+            // const data = await resp.json();
+            // // console.log("THE DA-------------------",data.token);
+            // const sessionToken = data.token;
+            // const saved = localStorage.setItem("token",sessionToken);
+            // navigate("/profile");
             // Maps("/profile");
             // console.log(sessionToken);
+            if (resp.ok)
+            {
+                const data = await resp.json();
+                const sessionToken = data.token;
+                localStorage.setItem("token", sessionToken);
+                navigate("/profile");
+            } 
+            else 
+            {
+                const data = await resp.json();
+                alert(data.error || "Login failed!");
+            }
         }
         catch(error)
         {

@@ -19,7 +19,9 @@ function Profile()
   const [searchReqs, setSearchReqs] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [hasPend, setHasPend] = useState(false);
+  const [hasShow, setHasShow] = useState(false);
   const [pendingReqs, setPendingReqs] = useState([]);
+  const [friends, setFriends] = useState([]);
 
 
   // console.log("DRAFT STATE:", updatedData);
@@ -47,6 +49,22 @@ function Profile()
       }
       catch(error)
       {
+
+      }
+    }
+    const fetchFriends = async () =>{
+      const getToken = localStorage.getItem("token");
+      try{
+        const resp = await fetch("http://localhost:8281/api/v1/users/friends/list", {
+          headers: { "Authorization": "Bearer " + getToken },
+        })
+          if(resp.ok){
+            const data = await resp.json();
+            setFriends(data);
+            setHasShow(true);
+          }
+      }
+      catch(error){
 
       }
     }
@@ -85,6 +103,7 @@ function Profile()
     }
     fetchProfile();
     fetchPending();
+    fetchFriends();
     }, []);
     const handleSearch = async () =>{
       const getToken = localStorage.getItem("token");
@@ -115,7 +134,7 @@ function Profile()
         if(data.ok)
         {
           setPendingReqs(prev => prev.filter(r => r.id !== reqId))
-
+          fetchFriends();
         }
       }
       catch(err){
@@ -288,6 +307,7 @@ function Profile()
             <br></br>
               <div>
                 <h3>pending requests ({pendingReqs.length})</h3>
+                {/* { pendingReqs.length> 0  || !hasPend? */}
                 { pendingReqs.length> 0  || !hasPend?
                 (
                   pendingReqs.map((req) => (
@@ -314,8 +334,25 @@ function Profile()
               <button onClick={handleSearch}>Search</button>
               {/* if()/ */}
             </div>
-
             <div>
+              <h3>my friends are {friends.length}</h3>
+              {/* {friends.length >  0 || !hasShow? */}
+              {friends.length >  0 || !hasShow?
+              (friends.map((fr) =>
+              (
+                <div key={fr.id} >
+                  <img src={fr.avatar} alt={fr.username}></img>
+                  <span>{fr.username}</span>
+                  {fr.isOnline? (<span>🟢 Online</span>):
+                  (<span>🔴 Offline</span>)
+                  }
+                </div>
+              ))
+              ):(<p>no friends found yet </p>)
+              }
+            </div>
+            <div>
+              {/* {searchReqs.length > 0 ||  !hasSearched? */}
               {searchReqs.length > 0 ||  !hasSearched?
               (searchReqs.map((user) => 
                 (<div>
@@ -327,6 +364,13 @@ function Profile()
             <button onClick={handleLogout}>logout</button>
       
           </div>
+                {userData.role === "admin" && (
+          <div>
+              <Link to="/admin">
+                  <button>Admin Dashboard</button>
+              </Link>
+          </div>
+      )}
         </>
       );
     }
